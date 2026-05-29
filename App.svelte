@@ -4,7 +4,7 @@
     1: "天野 紗希",   2: "岩澤 爾七",   3: "岩舘 美桜",   4: "大住 旬",
     5: "大八木 桃実", 6: "大山 航平",   7: "沖 愛佳",     8: "小野 遥",
     9: "上條 優衣",   10: "川原 愛生",  11: "黒川 晃世",  12: "郷地 翔大",
-    13: "小島 朱莉",  14: "小林 美海",  15: "頃安 誠", // 崔紗会(404-15)と同番号のため後述の配置で吸収
+    13: "小島 朱莉",  14: "小林 美海",  15: "頃安 誠",
     16: "崔 紗会",     17: "佐子 凜夏",  18: "鈴木 僚太",  19: "瀬戸 康太",
     20: "高橋 直太",  21: "瀧澤 涼",    22: "武田 頼景",  23: "田中 譲太郎",
     24: "土蔵 創一",  25: "中尾 結衣子", 26: "中村 純羽",  27: "橋本 かれん",
@@ -13,14 +13,10 @@
     36: "柳川 大河",  37: "山崎 唯翔",  38: "横山 蓉",    39: "吉田 芽生"
   };
 
-  const rows = 6;
-  const cols = 7;
-
-  // 写真の座席配置（教卓側が上、1行目〜6行目、左から右へ）
-  // ※崔 紗会さんと頃安 誠さんはいずれも「404-15」と書かれているため、出席番号15と16に割り振っています。
+  // 写真の新しい座席配置（5/22〜の席替え対応版）
   const seatLayout = [
     // 1行目（教卓のすぐ後ろ）
-    [{num: 30, name: "福島 創士"}, {num: 15, name: "頃安 誠"}, {num: 31, name: "藤井 千夏"}, {num: 16, name: "崔 紗会"}, {num: 5, name: "大八木 桃実"}, null, null],
+    [null, {num: 30, name: "福島 創士"}, {num: 15, name: "頃安 誠"}, {num: 31, name: "藤井 千夏"}, {num: 16, name: "崔 紗会"}, {num: 5, name: "大八木 桃実"}, null],
     // 2行目
     [{num: 12, name: "郷地 翔大"}, {num: 14, name: "小林 美海"}, {num: 39, name: "吉田 芽生"}, {num: 7, name: "沖 愛佳"}, {num: 38, name: "横山 蓉"}, {num: 3, name: "岩舘 美桜"}, {num: 23, name: "田中 譲太郎"}],
     // 3行目
@@ -33,164 +29,148 @@
     [null, {num: 2, name: "岩澤 爾七"}, {num: 27, name: "橋本 かれん"}, {num: 25, name: "中尾 結衣子"}, {num: 20, name: "高橋 直太"}, {num: 24, name: "土蔵 創一"}, {num: 22, name: "武田 頼景"}]
   ];
 
-  // 座席グリッドの生成（二次元配列のオブジェクト構造を維持）
-  let grid = [];
-  for (let r = 0; r < rows; r++) {
-    let row = [];
-    for (let c = 0; c < cols; c++) {
-      const seat = seatLayout[r][c];
-      if (seat === null) {
-        row.push(null);
-      } else {
-        row.push({ r, c, num: seat.num, name: seat.name });
-      }
-    }
-    grid.push(row);
-  }
+  let history = [];
+  let currentSeat = null;
+  let candidates = [];
 
-  // 状態管理
-  let todayDate = new Date().getDate(); // 初期値は今日の日付
-  let history = []; // 当てられた人の配列
-  let candidates = []; // 次の候補の配列
-
-  // リセット処理
-  function reset() {
-    history = [];
-    candidates = [];
-  }
-
-  // 最初の1人を日付からセット
-  function setFirstPerson() {
-    reset();
-    for (let r = 0; r < rows; r++) {
-      for (let c = 0; c < cols; c++) {
-        const seat = grid[r][c];
-        if (seat && seat.num === todayDate) {
-          selectSeat(seat);
-          return;
-        }
-      }
-    }
-    alert(`${todayDate}番の生徒が見つかりません（欠席等でずれる場合は手動で選んでね）`);
-  }
-
-  // 席をクリックしたときの処理
-  function handleSeatClick(seat) {
-    if (!seat) return;
-    // 最初の1人目か、候補の席しかクリックできないようにする
-    if (history.length === 0 || candidates.some(c => c.r === seat.r && c.c === seat.c)) {
-      selectSeat(seat);
-    }
-  }
-
-  // 席を選択して次の候補を計算
-  function selectSeat(seat) {
-    history = [...history, seat];
-    calcCandidates(seat);
-  }
-
-  // ナイトの動きで次の候補を計算
-  function calcCandidates(seat) {
-    const knightMoves = [
-      [-2, -1], [-2, 1], [-1, -2], [-1, 2],
-      [1, -2], [1, 2], [2, -1], [2, 1]
+  // ナイトの動き（L字）が可能な席を計算する関数
+  function getKnightMoves(row, col) {
+    const moves = [
+      { r: -2, c: -1 }, { r: -2, c: 1 },
+      { r: -1, c: -2 }, { r: -1, c: 2 },
+      { r: 1, c: -2 },  { r: 1, c: 2 },
+      { r: 2, c: -1 },  { r: 2, c: 1 }
     ];
-    
-    let nextCandidates = [];
-    knightMoves.forEach(([dr, dc]) => {
-      const nr = seat.r + dr;
-      const nc = seat.c + dc;
-      
-      // グリッド内で、かつ空席ではないかチェック
-      if (nr >= 0 && nr < rows && nc >= 0 && nc < cols && seatLayout[nr][nc] !== null) {
-        // すでに当てられた人（履歴）に含まれていないかチェック
-        const alreadyCalled = history.some(h => h.r === nr && h.c === nc);
-        if (!alreadyCalled) {
-          nextCandidates.push(grid[nr][nc]);
+
+    let validMoves = [];
+
+    for (let m of moves) {
+      const newRow = row + m.r;
+      const newCol = col + m.c;
+
+      // グリッドの範囲内かチェック
+      if (newRow >= 0 && newRow < 6 && newCol >= 0 && newCol < 7) {
+        const targetSeat = seatLayout[newRow][newCol];
+        // 空席(null)でなければ候補に入れる
+        if (targetSeat !== null) {
+          validMoves.push(targetSeat);
         }
       }
-    });
-    candidates = nextCandidates;
+    }
+    return validMoves;
   }
 
-  // 表示用のヘルパー関数
+  // 席がクリックされたときの処理
+  function handleSeatClick(seat, r, c) {
+    if (!seat) return;
+
+    // 初回（履歴なし）なら誰でも選べる、2回目以降はナイトの候補席しか選べない
+    if (history.length > 0 && !candidates.some(id => id.num === seat.num)) {
+      return;
+    }
+
+    currentSeat = seat;
+    history = [...history, seat];
+    candidates = getKnightMoves(r, c);
+  }
+
+  // 各種状態判定
   function isSelected(seat) {
-    if (!seat || history.length === 0) return false;
-    const latest = history[history.length - 1];
-    return latest.r === seat.r && latest.c === seat.c;
+    return currentSeat && currentSeat.num === seat?.num;
   }
 
   function isPast(seat) {
-    if (!seat || history.length <= 1) return false;
-    return history.slice(0, -1).some(h => h.r === seat.r && h.c === seat.c);
+    if (!seat) return false;
+    return history.slice(0, -1).some(h => h.num === seat.num);
   }
 
   function isCandidate(seat) {
-    if (!seat) return false;
-    return candidates.some(c => c.r === seat.r && c.c === seat.c);
+    if (!seat || isPast(seat) || isSelected(seat)) return false;
+    return candidates.some(c => c.num === seat.num);
+  }
+
+  // リセット
+  function reset() {
+    history = [];
+    currentSeat = null;
+    candidates = [];
   }
 </script>
 
-<main class="min-h-screen bg-gray-100 p-4 font-sans text-gray-800">
-  <div class="max-w-4xl mx-auto">
-    <h1 class="text-3xl font-bold text-center mb-6 text-blue-800">404HR 先生のナイトシミュレーター ♟️</h1>
+<main class="min-h-screen bg-slate-100 p-4 font-sans select-none text-slate-800">
+  <div class="max-w-4xl mx-auto space-y-6">
+    
+    <header class="text-center bg-white p-4 rounded-xl shadow-md border border-slate-200">
+      <h1 class="text-2xl font-black text-blue-600 tracking-wider">🎯 404HR 数学 席順シミュレーター</h1>
+      <p class="text-xs text-slate-500 mt-1">チェスのナイトの動き（L字ジャンプ）を完全先読み</p>
+    </header>
 
-    <div class="bg-white p-4 rounded-lg shadow-md mb-6 flex flex-wrap items-center justify-center gap-4">
-      <div class="flex items-center gap-2">
-        <label for="date" class="font-bold">今日の日付:</label>
-        <input type="number" id="date" bind:value={todayDate} min="1" max="39" class="border rounded px-2 py-1 w-16 text-center" />
+    <div class="bg-white p-4 rounded-xl shadow-md border border-slate-200 space-y-4">
+      <div class="flex justify-between items-center">
+        <div class="flex gap-4 text-xs">
+          <div class="flex items-center gap-1"><span class="w-4 h-4 bg-red-500 border rounded"></span>現在</div>
+          <div class="flex items-center gap-1"><span class="w-4 h-4 bg-yellow-200 border border-yellow-500 rounded"></span>次候補</div>
+          <div class="flex items-center gap-1"><span class="w-4 h-4 bg-gray-300 border rounded"></span>指名済</div>
+        </div>
+        <button on:click={reset} class="bg-slate-600 hover:bg-slate-700 text-white font-bold text-sm px-4 py-1.5 rounded-lg shadowTransition shadow-sm">
+          リセット
+        </button>
       </div>
-      <button on:click={setFirstPerson} class="bg-blue-500 hover:bg-blue-600 text-white font-bold py-2 px-4 rounded transition">
-        最初の人をセット
-      </button>
-      <button on:click={reset} class="bg-gray-300 hover:bg-gray-400 text-gray-800 font-bold py-2 px-4 rounded transition">
-        リセット
-      </button>
-    </div>
 
-    <div class="w-1/2 mx-auto bg-gray-200 border-2 border-gray-400 text-center py-2 font-bold mb-8 rounded">
-      教 卓
-    </div>
+      <div class="w-1/3 mx-auto bg-slate-200 text-slate-600 text-center font-bold text-sm py-2 rounded-md border border-slate-300">
+        【 教 卓 】
+      </div>
 
-    <div class="grid grid-cols-7 gap-2 mb-8">
-      {#each grid as row}
-        {#each row as seat}
-          <div 
-            class="h-20 border rounded-lg flex flex-col items-center justify-center p-1 transition-all duration-300
-              {seat === null ? 'invisible' : ''}
-              {isSelected(seat) ? 'bg-red-500 text-white shadow-lg scale-105 border-red-700' : ''}
-              {isPast(seat) ? 'bg-gray-300 text-gray-600 border-gray-400' : ''}
-              {isCandidate(seat) ? 'bg-yellow-200 border-yellow-500 cursor-pointer hover:bg-yellow-300 animate-pulse' : ''}
-              {!isSelected(seat) && !isPast(seat) && !isCandidate(seat) && seat !== null ? 'bg-white border-gray-300 hover:bg-blue-50' : ''}
-              {history.length === 0 && seat !== null ? 'cursor-pointer hover:bg-blue-100' : ''}
-            "
-            on:click={() => handleSeatClick(seat)}
-          >
-            {#if seat}
-              <span class="text-xs opacity-80">{seat.num}</span>
-              <span class="font-bold text-sm text-center leading-tight">{seat.name}</span>
-            {/if}
-          </div>
+      <div class="grid grid-cols-7 gap-2 max-w-3xl mx-auto pt-2">
+        {#each seatLayout as row, r}
+          {#each row as seat, c}
+            <div
+              class="
+                flex flex-col justify-center items-center rounded-lg border h-16 transition-all duration-200
+                {seat === null ? 'border-transparent bg-transparent opacity-0' : ''}
+                {isSelected(seat) ? 'bg-red-500 text-white shadow-lg scale-105 border-red-700 font-black z-10' : ''}
+                {isPast(seat) ? 'bg-gray-300 text-gray-500 border-gray-400 opacity-60' : ''}
+                {isCandidate(seat) ? 'bg-yellow-200 border-yellow-500 cursor-pointer hover:bg-yellow-300 shadow-md animate-pulse' : ''}
+                {!isSelected(seat) && !isPast(seat) && !isCandidate(seat) && seat !== null ? 'bg-white border-slate-300 shadow-sm' : ''}
+                {history.length === 0 && seat !== null ? 'cursor-pointer hover:bg-blue-50 border-blue-400' : ''}
+              "
+              on:click={() => handleSeatClick(seat, r, c)}
+            >
+              {#if seat}
+                <span class="text-[10px] font-mono leading-none mb-1 opacity-70">{seat.num}番</span>
+                <span class="font-bold text-xs sm:text-sm text-center leading-tight tracking-tight px-1">{seat.name}</span>
+              {/if}
+            </div>
+          {/each}
         {/each}
-      {/each}
+      </div>
     </div>
 
-    <div class="bg-white p-4 rounded-lg shadow-md">
-      <h2 class="text-xl font-bold mb-2 border-b pb-2">🎯 当たった順番</h2>
-      <ol class="list-decimal list-inside flex flex-wrap gap-x-6 gap-y-2">
-        {#each history as h, i}
-          <li class="{i === history.length - 1 ? 'text-red-600 font-bold' : 'text-gray-600'}">
-            {h.name} <span class="text-xs opacity-75">({h.num}番)</span>
-          </li>
-        {/each}
-        {#if history.length === 0}
-          <li class="text-gray-400 list-none">まだ誰も当てられていません</li>
-        {/if}
-      </ol>
+    <div class="bg-white p-4 rounded-xl shadow-md border border-slate-200">
+      <h2 class="text-base font-bold mb-3 flex items-center gap-1 text-slate-700">
+        📋 本日の指名履歴
+      </h2>
+      {#if history.length === 0}
+        <p class="text-sm text-slate-400 py-2">最初の生徒（日付の番号など）を上の座席表からタップしてスタート！</p>
+      {:else}
+        <div class="flex flex-wrap gap-2 items-center">
+          {#each history as h, i}
+            <div class="flex items-center gap-1">
+              <span class="bg-slate-100 border px-2 py-1 rounded-md text-xs font-medium shadow-sm flex items-center gap-1 {i === history.length - 1 ? 'border-red-500 bg-red-50 text-red-700 font-bold' : ''}">
+                <span class="text-[10px] text-slate-400">{i + 1}.</span> {h.name}
+              </span>
+              {#if i < history.length - 1}
+                <span class="text-slate-400 text-sm">➔</span>
+              {/if}
+            </div>
+          {/each}
+        </div>
+      {/if}
     </div>
+
   </div>
 </main>
 
 <style>
-  /* Tailwindを使っているので基本CSSは不要ですが、必要に応じて追加 */
+  /* 微調整用のスタイルを追加したい場合はここに */
 </style>
