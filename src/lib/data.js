@@ -1,9 +1,8 @@
 /**
  * Student data and seating chart configuration for 404HR Math A
  *
- * Grid: 6 rows × 7 columns
- * Empty seats: (col:0, row:0), (col:0, row:5), (col:6, row:0)
- * Students are assigned column-by-column, top-to-bottom
+ * Grid: 6 rows × 7 columns, given explicitly in SEAT_LAYOUT
+ * (row 0 = front, next to the teacher's desk; null = no desk)
  *
  * Movement pattern (fixed 8-move cycle):
  *   1. Left 1, Forward 2
@@ -33,11 +32,15 @@ export const students = [
 export const ROWS = 6;
 export const COLS = 7;
 
-// Empty seat positions: [col, row]
-export const EMPTY_SEATS = [
-  [0, 0], // left front
-  [0, 5], // left back
-  [6, 0], // right front
+// Seating chart by student number (席替えしたらここを書き換える)
+// row 0 = 教卓側（前）, null = 机なし
+export const SEAT_LAYOUT = [
+  [null,  5, 13, 33, 19, 26, null],
+  [30,    1, 15, 28, 36, 14, 29],
+  [35,   37, 22,  3, 34, 20, 10],
+  [9,     2, 21, 16,  6,  4, 11],
+  [27,   38, 23, 18, 12,  8, 25],
+  [null, 31, 39,  7, 24, 17, null],
 ];
 
 /**
@@ -56,49 +59,13 @@ export const MOVES = [
 
 const MOVE_LABELS = ['左1・前2', '右2', '左2・前2', '右2', '左3・前3', '右4', '左4・後2', '右4'];
 
-// Seat swaps applied after the default column-by-column assignment
-export const SEAT_SWAPS = [
-  ['平井 結芽', '田中 譲太郎'],
-  ['大住 旬', '上條 優衣'],
-];
-
 /**
  * Build the seat grid: grid[row][col] = { number, name } | null
  */
 export function buildSeatGrid() {
-  const grid = Array.from({ length: ROWS }, () => Array(COLS).fill(null));
-  let idx = 0;
-
-  for (let col = 0; col < COLS; col++) {
-    for (let row = 0; row < ROWS; row++) {
-      if (EMPTY_SEATS.some(([c, r]) => c === col && r === row)) {
-        grid[row][col] = null;
-        continue;
-      }
-      if (idx < students.length) {
-        grid[row][col] = { number: idx + 1, name: students[idx] };
-        idx++;
-      }
-    }
-  }
-
-  for (const [nameA, nameB] of SEAT_SWAPS) {
-    let posA = null;
-    let posB = null;
-    for (let r = 0; r < ROWS; r++) {
-      for (let c = 0; c < COLS; c++) {
-        if (grid[r][c]?.name === nameA) posA = [r, c];
-        if (grid[r][c]?.name === nameB) posB = [r, c];
-      }
-    }
-    if (posA && posB) {
-      const tmp = grid[posA[0]][posA[1]];
-      grid[posA[0]][posA[1]] = grid[posB[0]][posB[1]];
-      grid[posB[0]][posB[1]] = tmp;
-    }
-  }
-
-  return grid;
+  return SEAT_LAYOUT.map(row =>
+    row.map(n => (n === null ? null : { number: n, name: students[n - 1] }))
+  );
 }
 
 /**

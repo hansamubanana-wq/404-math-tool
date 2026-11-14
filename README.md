@@ -10,4 +10,4 @@ npm install
 npm run dev
 ```
 
-生徒名簿・空席・席の入れ替え・移動パターンは `src/lib/data.js` にあります。
+生徒名簿・座席表（`SEAT_LAYOUT`、席替えのたびに書き換え）・移動パターンは `src/lib/data.js` にあります。
